@@ -1,0 +1,130 @@
+# CI workflow 정의
+name: CI
+
+# 이벤트 설정: pull_request가 발생하면 실행
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - 'app/**'
+      - '.github/workflows/main.yml'
+
+# 권한 설정: write-all
+permissions: write-all
+
+# 환경 변수 설정: 이미지 이름은 GitHub 리포지토리 이름으로 정의
+env:
+  IMAGE: ghcr.io/$(echo $GITHUB_REPOSITORY | tr '[A-Z]' '[a-z]')/ci_test
+
+# 작업 설정
+jobs:
+  # build 작업: Docker 이미지 빌드
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    # 기본 환경 변수 출력
+    steps:
+      - name: echo-default-env-variables
+        # ${HOME}: 홈 디렉토리의 경로
+        # ${GITHUB_WORKFLOW}: 현재 실행 중인 GitHub Actions workflow의 이름
+        # ${GITHUB_ACTIONS}: GitHub Actions 활성 여부를 나타내는 불리언 값
+        # ${GITHUB_ACTOR}: 이벤트를 시작한 GitHub 사용자의 이름
+        # ${GITHUB_REPOSITORY}: 현재 작업 중인 리포지토리의 소유자와 이름
+        # ${GITHUB_EVENT_NAME}: 트리거된 이벤트의 이름 (예: pull_request)
+        # ${GITHUB_WORKSPACE}: 현재 작업 중인 리포지토리의 경로
+        # ${GITHUB_SHA}: 현재 커밋의 SHA 해시 값
+        # ${GITHUB_REF}: 현재 작업 중인 브랜치나 태그의 참조
+        run: |
+          echo "Home: ${HOME}"
+          echo "GITHUB_WORKFLOW: ${GITHUB_WORKFLOW}"
+          echo "GITHUB_ACTIONS: ${GITHUB_ACTIONS}"
+          echo "GITHUB_ACTOR: ${GITHUB_ACTOR}"
+          echo "GITHUB_REPOSITORY: ${GITHUB_REPOSITORY}"
+          echo "GITHUB_EVENT_NAME: ${GITHUB_EVENT_NAME}"
+          echo "GITHUB_WORKSPACE: ${GITHUB_WORKSPACE}"
+          echo "GITHUB_SHA: ${GITHUB_SHA}"
+          echo "GITHUB_REF: ${GITHUB_REF}"
+      # 소스 코드 체크아웃
+      - name: Checkout
+        uses: actions/checkout@v3
+      # GitHub Packages(도커허브같은것)에 로그인하는 단계의 이름.
+      # GitHub Token을 사용하여 Docker에 로그인하는 명령입니다. echo ${GITHUB_TOKEN}을 통해 토큰을 출력하고, 
+      # docker login 명령을 사용하여 해당 토큰을 이용해 로그인합니다. ${GITHUB_ACTOR}는 현재 이벤트를 시작한 GitHub 사용자의 이름을 나타냅니다.
+      - name: Log in to GitHub Packages
+        run: echo ${GITHUB_TOKEN} | docker login -u ${GITHUB_ACTOR} --password-stdin ghcr.io
+        env:
+          # GitHub Actions의 시크릿인 secrets.GITHUB_TOKEN 값으로 설정
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # 이미지 풀
+      - name: Pull image
+        run: |
+          docker pull ${{ env.IMAGE }}:latest || true
+      # 이미지 빌드
+      - name: Build image
+        # 이미지 빌드 중에 이전 빌드에서 캐시된 레이어를 사용하여 빌드 시간을 최적화하는 옵션
+        # --tag ${{ env.IMAGE }}:latest: 빌드된 이미지에 태그를 지정
+        # --file ./app/Dockerfile: Dockerfile의 경로를 지정
+        # ./app": 이 위치에서 Dockerfile 및 빌드에 필요한 모든 파일을 찾을 수 있습니다
+        run: |
+          docker build \
+            --cache-from ${{ env.IMAGE }}:latest \
+            --tag ${{ env.IMAGE }}:latest \
+            --file ./app/Dockerfile \
+            "./app"
+      # 이미지 푸시
+      - name: Push image
+        run: |
+          docker push ${{ env.IMAGE }}:latest
+# test 작업: Docker 이미지 테스트
+  test:
+    name: Test Docker Image
+    runs-on: ubuntu-latest
+    # build 작업이 완료된 후에 실행
+    needs: build
+    steps:
+      # 소스 코드 체크아웃
+      - name: Checkout
+        uses: actions/checkout@v3
+      # GitHub Packages에 로그인
+      - name: Log in to GitHub Packages
+        run: echo ${GITHUB_TOKEN} | docker login -u ${GITHUB_ACTOR} --password-stdin ghcr.io
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # 이미지 풀
+      - name: Pull image
+        run: |
+          docker pull ${{ env.IMAGE }}:latest || true
+      # 이미지 빌드
+      - name: Build image
+        run: |
+          docker build \
+            --cache-from ${{ env.IMAGE }}:latest \
+            --tag ${{ env.IMAGE }}:latest \
+            --file ./app/Dockerfile \
+            "./app"
+      # 컨테이너 실행
+      - name: Run container
+      # Docker 컨테이너를 실행합니다.
+      # 인터랙티브 모드로 실행하고 백그라운드에서 실행합니다.
+      # 컨테이너의 이름을 "press_leaderboard"로 지정합니다.
+      # 호스트의 8555 포트를 컨테이너의 8000 포트로 포워딩합니다.
+      # 지정된 Docker 이미지를 실행하고 bash 셸을 시작합니다.
+        run: |
+          docker run \
+            -itd \
+            --name press_leaderboard \
+            -p 8555:8000 \
+            ${{ env.IMAGE }}:latest bash
+      # 실행된 컨테이너 내에서 pytest를 실행하여 테스트를 수행합니다.
+      - name: Pytest
+        run: docker exec press_leaderboard python -m pytest .
+      # 실행된 컨테이너 내에서 flake8를 실행하여 코드 스타일을 검증합니다.
+      - name: Flake8
+        run: docker exec press_leaderboard python -m flake8 .
+      # 실행된 컨테이너 내에서 black을 실행하여 코드 포맷을 검증합니다.
+      - name: Black
+        run: docker exec press_leaderboard python -m black . --check
+      # 실행된 컨테이너 내에서 isort를 실행하여 import 정렬을 검증합니다.
+      - name: isort
+        run: docker exec press_leaderboard python -m isort . --check-only

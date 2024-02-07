@@ -1,0 +1,29 @@
+// launch.json 파일은 Visual Studio Code에서 디버깅을 구성하는 데 사용되는 설정
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    
+    "configurations": [
+        {
+            //Python: Django"로 설정되어 있으며, Python Django 프로젝트를 디버그하는 데 사용
+            "name": "Python: Django",
+            // 이 디버그 구성이 Python 언어를 사용하는 것을 나타냅
+            "type": "python",
+            // 디버그 세션을 시작할 때 실행할 작업 유형을 지정
+            "request": "launch",
+            // 디버그 세션에서 실행할 프로그램의 경로를 지정합니다. 여기서는 Django 프로젝트의 manage.py 파일을 실행
+            "program": "${workspaceFolder}/manage.py",
+            // "runserver"를 인수로 전달하여 Django 서버를 실행
+            "args": [
+                "runserver",
+            ],
+            // Visual Studio Code가 Django 프로젝트의 특수한 요구 사항을 고려하여 디버그를 수행
+            "django": true,
+            // Visual Studio Code의 디버깅 도구가 사용자가 작성한 코드에만 초점을 맞추도록 지정합니다. 
+            // 따라서 외부 라이브러리 등의 코드는 디버그되지 않습니다.
+            "justMyCode": true
+        }
+    ]
+}

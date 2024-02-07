@@ -1,0 +1,7 @@
+env
+.dockerignore
+# 왜? 빌드중에 도커파일을 무시하지?
+Dockerfile
+# docker의 프로덕션 환경에서 사용되는 Dockerfile입니다. 보통 프로덕션 환경에서는 
+# 개발 환경과는 다른 설정 및 구성이 필요하므로, 별도의 Dockerfile을 사용하여 이러한 설정을 관리하는 것이 일반적
+Dockerfile.prod
